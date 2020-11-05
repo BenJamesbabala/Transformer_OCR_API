@@ -124,6 +124,16 @@ def resize(w, h, expected_height, image_min_width, image_max_width):
 
     return new_w, expected_height
 
+def resize_padding(w, h, expected_height, image_fix_width=128):
+    new_w = int(expected_height * float(w) / float(h))
+    round_to = 10
+    new_w = math.ceil(new_w/round_to)*round_to
+    if new_w < image_fix_width:
+        return new_w, expected_height
+    else:
+        return image_fix_width, expected_height
+
+
 def process_image(image, image_height, image_min_width, image_max_width):
     img = image.convert('RGB')
 
@@ -136,11 +146,42 @@ def process_image(image, image_height, image_min_width, image_max_width):
     img = img/255
     return img
 
+def process_image_fix(image, image_height, image_width=128):
+    img = image.convert('RGB')
+
+    w, h = img.size
+    new_w, image_height = resize_padding(w, h, image_height,image_width)
+
+    if new_w < image_width:
+        img = img.resize((new_w, image_height), Image.ANTIALIAS)
+        # create a new image and paste the resized on it
+
+        new_im = Image.new("RGB", (image_width, image_height))
+        new_im.paste(img, ((image_width - new_w) // 2, 0))
+        img = new_im
+
+    else:
+        img = img.resize((image_width, image_height), Image.ANTIALIAS)
+
+    img = np.asarray(img).transpose(2,0, 1)
+    img = img/255
+    return img
+
+
 def process_input(image, image_height, image_min_width, image_max_width):
     img = process_image(image, image_height, image_min_width, image_max_width)
     img = img[np.newaxis, ...]
     img = torch.FloatTensor(img)
     return img
+
+def process_batch_input(batch_image, image_height, image_min_width, image_max_width):
+
+    batch_image_processed = [process_image_fix(img, image_height, image_width=128) for img in batch_image]
+    batch_image_processed = np.stack(batch_image_processed)
+    print(batch_image_processed.shape)
+    batch_image_processed = np.array(batch_image_processed)
+    batch_image_processed = torch.FloatTensor(batch_image_processed)
+    return batch_image_processed
 
 def predict(filename, config):
     img = Image.open(filename)
